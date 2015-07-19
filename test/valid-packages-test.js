@@ -6,7 +6,8 @@ var assert = require("assert"),
     glob = require("glob"),
     vows = require("vows-si"),
     jsv = require("JSV").JSV.createEnvironment(),
-    isThere = require("is-there");
+    isThere = require("is-there"),
+    request = require('request');
 
 function parse(json_file, ignore_missing, ignore_parse_fail) {
     var content;
@@ -154,9 +155,35 @@ packages.map(function (pkg) {
 
     package_vows[pname + ": format check"] = function (pkg) {
         var orig = fs.readFileSync(pkg, 'utf8'),
-            correct = JSON.stringify(JSON.parse(orig), null, 2) + '\n';
-        assert.ok(orig === correct,
-            pkg_name(pkg) + ": package.json wrong format, correct one should be like this.\n(Remove the first 2 spaces of each line and include blank line at end if you copy and paste this example)\n" + correct +"\n");
+            correct = JSON.stringify(JSON.parse(orig), null, 2) + '\n',
+            errMsg = pkg_name(pkg) + ": package.json wrong format, correct one should be like this.\n(Remove the first 2 spaces of each line and include blank line at end if you copy and paste this example)\n" + correct +"\n";
+        if (orig !== correct && process.env.pastebinAPIKey !== undefined) {
+            request.post({
+                url: 'http://pastebin.com/api/api_post.php',
+                form:
+                {
+                    api_option: 'paste',
+                    api_dev_key: process.env.pastebinAPIKey,
+                    api_paste_private: '0',
+                    api_paste_expire_date: '1D',
+                    api_paste_format: 'json',
+                    api_paste_name: 'cdnjs json format/indent/style validation process',
+                    api_paste_code: correct
+                }
+            },
+            function (err, response, body) {
+                if (!error && response.statusCode === 200) {
+                    console.log("Something wrong with pastebin post: http status code - " + response.statusCode + ", error: " + error);
+                    assert.ok(orig === correct, errMsg);
+                } else {
+                    assert.ok(orig === correct, errMsg);
+                    console.log("You can download a well formated package.json here: http://pastebin.com/download.php?i=" + body.split('/')[1]);
+                }
+            });
+        } else {
+             assert.ok(orig === correct, errMsg);
+        }
+
     }
 
     package_vows[pname + ": useless fields check"] = function (pkg) {
